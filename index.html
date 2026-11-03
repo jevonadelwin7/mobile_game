@@ -4956,48 +4956,71 @@ body.is-touch .result-card { margin: auto; }
       this.openModal();
     },
 
+    _hudCache: {
+      els: null,
+      h: -1,
+      o: -1,
+      t: -1
+    },
+
     updateHUDIndicators() {
       const cid = GAME.activeCarId || "mini";
       const cond = GAME.carConditions[cid] || { health: 100, oil: 100, tire: 100 };
       const h = Math.round(cond.health);
       const o = Math.round(cond.oil);
       const t = Math.round(cond.tire);
+      const cache = this._hudCache;
 
-      const elE = document.getElementById("hudCondEngine");
-      const barE = document.getElementById("hudBarEngine");
-      if (elE) elE.textContent = `${h}%`;
-      if (barE) {
-        barE.style.width = `${h}%`;
-        barE.className = `car-meter-fill ${h < 25 ? "is-low" : h < 55 ? "is-mid" : ""}`;
+      // OPTIMASI: referensi DOM diambil sekali, lalu nilai/kelas hanya ditulis bila berubah.
+      if (!cache.els) {
+        cache.els = {
+          engine: document.getElementById("hudCondEngine"),
+          engineBar: document.getElementById("hudBarEngine"),
+          oil: document.getElementById("hudCondOil"),
+          oilBar: document.getElementById("hudBarOil"),
+          tire: document.getElementById("hudCondTire"),
+          tireBar: document.getElementById("hudBarTire"),
+          banner: document.getElementById("breakdownBanner")
+        };
+      }
+      const els = cache.els;
+
+      if (cache.h !== h) {
+        cache.h = h;
+        if (els.engine) els.engine.textContent = `${h}%`;
+        if (els.engineBar) {
+          els.engineBar.style.width = `${h}%`;
+          els.engineBar.className = `car-meter-fill ${h < 25 ? "is-low" : h < 55 ? "is-mid" : ""}`;
+        }
       }
 
-      const elO = document.getElementById("hudCondOil");
-      const barO = document.getElementById("hudBarOil");
-      if (elO) elO.textContent = `${o}%`;
-      if (barO) {
-        barO.style.width = `${o}%`;
-        barO.className = `car-meter-fill ${o < 25 ? "is-low" : o < 55 ? "is-mid" : ""}`;
+      if (cache.o !== o) {
+        cache.o = o;
+        if (els.oil) els.oil.textContent = `${o}%`;
+        if (els.oilBar) {
+          els.oilBar.style.width = `${o}%`;
+          els.oilBar.className = `car-meter-fill ${o < 25 ? "is-low" : o < 55 ? "is-mid" : ""}`;
+        }
       }
 
-      const elT = document.getElementById("hudCondTire");
-      const barT = document.getElementById("hudBarTire");
-      if (elT) elT.textContent = `${t}%`;
-      if (barT) {
-        barT.style.width = `${t}%`;
-        barT.className = `car-meter-fill ${t < 25 ? "is-low" : t < 55 ? "is-mid" : ""}`;
+      if (cache.t !== t) {
+        cache.t = t;
+        if (els.tire) els.tire.textContent = `${t}%`;
+        if (els.tireBar) {
+          els.tireBar.style.width = `${t}%`;
+          els.tireBar.className = `car-meter-fill ${t < 25 ? "is-low" : t < 55 ? "is-mid" : ""}`;
+        }
       }
 
       // Peringatan jika indikator menipis saat permainan berlangsung.
       if (GAME.mode === "playing") {
         if (h <= CONFIG.workshop.wearRate.breakdownThreshold && !GAME.isBrokenDown) {
           GAME.isBrokenDown = true;
-          const banner = document.getElementById("breakdownBanner");
-          if (banner) banner.classList.remove("is-hidden");
+          if (els.banner) els.banner.classList.remove("is-hidden");
           audio.error();
         } else if (h > CONFIG.workshop.wearRate.breakdownThreshold && GAME.isBrokenDown) {
           GAME.isBrokenDown = false;
-          const banner = document.getElementById("breakdownBanner");
-          if (banner) banner.classList.add("is-hidden");
+          if (els.banner) els.banner.classList.add("is-hidden");
         }
       }
     }
@@ -5315,9 +5338,10 @@ body.is-touch .result-card { margin: auto; }
     const group = new THREE.Group();
     group.position.set(x, 0, z);
 
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x826042, roughness: 0.95 });
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0x2e8b45, roughness: 0.8, side: THREE.DoubleSide });
-    const nutMat = new THREE.MeshStandardMaterial({ color: 0x5a3e1b, roughness: 0.85 });
+    // OPTIMASI: material pohon kelapa dipakai bersama oleh semua pohon.
+    const trunkMat = MATERIAL.palmTrunk;
+    const leafMat = MATERIAL.palmLeaf;
+    const nutMat = MATERIAL.palmNut;
 
     // Batang pohon kelapa agak melengkung
     const segments = 6;
@@ -5713,7 +5737,7 @@ body.is-touch .result-card { margin: auto; }
         });
       });
       // Meja dagangan
-      addBox(group, 5.0, 1.1, 4.0, new THREE.MeshStandardMaterial({ color: 0x8a6d4e }), kx, 0.55, kz);
+      addBox(group, 5.0, 1.1, 4.0, MATERIAL.marketTable, kx, 0.55, kz);
     }
 
     worldGroup.add(group);
@@ -6179,7 +6203,10 @@ body.is-touch .result-card { margin: auto; }
       ico: new THREE.IcosahedronGeometry(1, 0),
       cone: new THREE.ConeGeometry(1, 1, 4),
       wheel: new THREE.CylinderGeometry(1, 1, 1, 16),
-      ring: new THREE.RingGeometry(.72, 1, 32)
+      ring: new THREE.RingGeometry(.72, 1, 32),
+      // OPTIMASI: geometri yang dipakai berulang tidak perlu dibuat ulang per rumah.
+      housePlaque: new THREE.PlaneGeometry(2.72, .84),
+      orderBeam: new THREE.CylinderGeometry(.035, .14, 7.4, 7)
     };
 
     MATERIAL.asphalt = new THREE.MeshStandardMaterial({
@@ -6224,6 +6251,13 @@ body.is-touch .result-card { margin: auto; }
     });
     MATERIAL.waterLabel = new THREE.MeshStandardMaterial({ color: 0xf2eddc, roughness: .65 });
     MATERIAL.waterCap = new THREE.MeshStandardMaterial({ color: 0x1b6c99, roughness: .45 });
+    // OPTIMASI: material identik dipakai bersama agar tidak ada instance material berulang.
+    MATERIAL.palmTrunk = new THREE.MeshStandardMaterial({ color: 0x826042, roughness: .95 });
+    MATERIAL.palmLeaf = new THREE.MeshStandardMaterial({ color: 0x2e8b45, roughness: .8, side: THREE.DoubleSide });
+    MATERIAL.palmNut = new THREE.MeshStandardMaterial({ color: 0x5a3e1b, roughness: .85 });
+    MATERIAL.chimney = new THREE.MeshStandardMaterial({ color: 0x9b6a51, roughness: .9 });
+    MATERIAL.mailbox = new THREE.MeshStandardMaterial({ color: 0xf1eee1, roughness: .8 });
+    MATERIAL.marketTable = new THREE.MeshStandardMaterial({ color: 0x8a6d4e });
   }
 
   /* ----------------------------------------------------------
@@ -6247,7 +6281,11 @@ body.is-touch .result-card { margin: auto; }
       canvas,
       antialias: !LOW_POWER,
       alpha: false,
-      powerPreference: "high-performance"
+      powerPreference: "high-performance",
+      // OPTIMASI: stencil tidak dipakai game; mematikannya mengurangi beban clear dan memori GPU.
+      stencil: false,
+      // OPTIMASI: eksplisit false karena canvas tidak pernah dibaca dengan toDataURL/readPixels.
+      preserveDrawingBuffer: false
     });
     renderer.setPixelRatio(PIXEL_RATIO);
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -6358,12 +6396,19 @@ body.is-touch .result-card { margin: auto; }
     }
   }
 
+  let resizeFrameId = 0;
   function onWindowResize() {
     if (!renderer || !camera) return;
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.5 : 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    // OPTIMASI: gabungkan rentetan event resize ke satu update per frame.
+    if (resizeFrameId) return;
+    resizeFrameId = requestAnimationFrame(() => {
+      resizeFrameId = 0;
+      if (!renderer || !camera) return;
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW_POWER ? 1.5 : 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
   }
 
   function onVisibilityChange() {
@@ -6392,6 +6437,111 @@ body.is-touch .result-card { margin: auto; }
     buildDepot();
     buildClouds();
     buildTuapejatEnvironment();
+    // OPTIMASI: satukan mesh statis opak per material untuk memangkas draw call.
+    mergeStaticWorldMeshes();
+  }
+
+  // OPTIMASI: penggabungan geometri statis tanpa mengubah posisi, rotasi, skala,
+  // material, UV, maupun normal yang terlihat. Mesh dinamis (truk, marker, efek)
+  // belum ada saat fungsi ini dipanggil, sehingga aman.
+  function mergeStaticWorldMeshes() {
+    if (!worldGroup) return;
+    worldGroup.updateMatrixWorld(true);
+
+    const batches = new Map();
+    worldGroup.traverse((object) => {
+      if (!object.isMesh || object.isInstancedMesh || object.isSkinnedMesh) return;
+      if (object.children.length || !object.visible) return;
+      if (!object.geometry || !object.geometry.attributes.position) return;
+      if (object.renderOrder !== 0) return;
+
+      const material = object.material;
+      if (!material || Array.isArray(material)) return;
+      if (material.isShaderMaterial) return;
+      if (material.transparent || material.opacity < 1 || material.depthWrite === false) return;
+
+      // Jangan bawa mesh dari grup yang sedang disembunyikan.
+      let parent = object.parent;
+      while (parent && parent !== worldGroup) {
+        if (!parent.visible) return;
+        parent = parent.parent;
+      }
+
+      const attributeKey = Object.keys(object.geometry.attributes).sort()
+        .map((name) => `${name}:${object.geometry.attributes[name].itemSize}`)
+        .join(",");
+      const key = `${material.uuid}|${object.castShadow ? 1 : 0}|${object.receiveShadow ? 1 : 0}|${attributeKey}`;
+      let batch = batches.get(key);
+      if (!batch) {
+        batch = {
+          material,
+          castShadow: !!object.castShadow,
+          receiveShadow: !!object.receiveShadow,
+          meshes: []
+        };
+        batches.set(key, batch);
+      }
+      batch.meshes.push(object);
+    });
+
+    batches.forEach((batch) => {
+      // Material yang hanya dipakai satu mesh tidak perlu digabung.
+      if (batch.meshes.length < 2) return;
+
+      const sourceMeshes = batch.meshes;
+      const attributeNames = Object.keys(sourceMeshes[0].geometry.attributes);
+      let totalVertices = 0;
+      const transformed = new Array(sourceMeshes.length);
+
+      for (let i = 0; i < sourceMeshes.length; i++) {
+        const mesh = sourceMeshes[i];
+        let geometry = mesh.geometry.clone();
+        geometry.applyMatrix4(mesh.matrixWorld);
+        if (geometry.index) {
+          const nonIndexed = geometry.toNonIndexed();
+          geometry.dispose();
+          geometry = nonIndexed;
+        }
+        transformed[i] = geometry;
+        totalVertices += geometry.attributes.position.count;
+      }
+
+      const mergedGeometry = new THREE.BufferGeometry();
+      for (let a = 0; a < attributeNames.length; a++) {
+        const name = attributeNames[a];
+        const first = transformed[0].attributes[name];
+        if (!first || !first.array || first.array.constructor === Array) continue;
+        const itemSize = first.itemSize;
+        const array = new first.array.constructor(totalVertices * itemSize);
+        let offset = 0;
+        for (let i = 0; i < transformed.length; i++) {
+          const attr = transformed[i].attributes[name];
+          if (!attr || attr.itemSize !== itemSize || attr.array.length !== attr.count * itemSize) {
+            const count = transformed[i].attributes.position.count;
+            array.fill(0, offset, offset + count * itemSize);
+            offset += count * itemSize;
+            continue;
+          }
+          array.set(attr.array, offset);
+          offset += attr.array.length;
+        }
+        mergedGeometry.setAttribute(name, new THREE.BufferAttribute(array, itemSize, first.normalized));
+      }
+
+      mergedGeometry.computeBoundingSphere();
+      const mergedMesh = new THREE.Mesh(mergedGeometry, batch.material);
+      mergedMesh.castShadow = batch.castShadow;
+      mergedMesh.receiveShadow = batch.receiveShadow;
+      mergedMesh.matrixAutoUpdate = false;
+      mergedMesh.updateMatrix();
+      worldGroup.add(mergedMesh);
+      mergedMesh.updateWorldMatrix(true, false);
+
+      for (let i = 0; i < sourceMeshes.length; i++) {
+        if (sourceMeshes[i].parent) sourceMeshes[i].parent.remove(sourceMeshes[i]);
+      }
+      for (let i = 0; i < transformed.length; i++) transformed[i].dispose();
+    });
   }
 
   function initHouseMaterials() {
@@ -6731,6 +6881,14 @@ body.is-touch .result-card { margin: auto; }
     return group;
   }
 
+  // OPTIMASI: semua rumah memakai dimensi atap yang sama, jadi geometri cukup dibuat sekali.
+  const roofGeometryCache = Object.create(null);
+  function getRoofGeometry(w, d, h) {
+    const key = `${w}|${d}|${h}`;
+    if (!roofGeometryCache[key]) roofGeometryCache[key] = createRoofGeometry(w, d, h);
+    return roofGeometryCache[key];
+  }
+
   function createRoofGeometry(w, d, h) {
     const A = [-w / 2, 0, -d / 2];
     const B = [w / 2, 0, -d / 2];
@@ -6770,14 +6928,14 @@ body.is-touch .result-card { margin: auto; }
     const roofD = depth + 1.1;
     const roofMat = (spec.id % 3 === 0) ? MATERIAL.roofB : MATERIAL.roofA;
     addBox(group, roofW + .14, .18, roofD + .14, MATERIAL.roofTrim, 0, height + .39, 0);
-    const roof = new THREE.Mesh(createRoofGeometry(roofW, roofD, CONFIG.house.roofHeight), roofMat);
+    const roof = new THREE.Mesh(getRoofGeometry(roofW, roofD, CONFIG.house.roofHeight), roofMat);
     roof.position.y = height + .47;
     roof.castShadow = !LOW_POWER;
     roof.receiveShadow = true;
     group.add(roof);
 
     if (spec.id % 4 === 0) {
-      addBox(group, .52, 1.35, .52, new THREE.MeshStandardMaterial({ color: 0x9b6a51, roughness: .9 }), -2.15, height + 1.25, -1.05);
+      addBox(group, .52, 1.35, .52, MATERIAL.chimney, -2.15, height + 1.25, -1.05);
     }
 
     // Pintu dan beranda.
@@ -6813,7 +6971,7 @@ body.is-touch .result-card { margin: auto; }
     const plaqueBack = addBox(group, 2.86, .98, .08, MATERIAL.pole, 0, 3.67, depth / 2 + .045, false);
     plaqueBack.castShadow = false;
     const plaque = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.72, .84),
+      SHARED.housePlaque,
       new THREE.MeshBasicMaterial({ map: makeHousePlaqueTexture(spec.number, spec.roadName), toneMapped: false })
     );
     plaque.position.set(0, 3.67, depth / 2 + .095);
@@ -6821,7 +6979,7 @@ body.is-touch .result-card { margin: auto; }
 
     // Kotak surat kecil di halaman.
     addBox(group, .1, .68, .1, MATERIAL.pole, -3.55, .45, 3.4, false);
-    addBox(group, .42, .3, .3, new THREE.MeshStandardMaterial({ color: 0xf1eee1, roughness: .8 }), -3.55, .86, 3.4, false);
+    addBox(group, .42, .3, .3, MATERIAL.mailbox, -3.55, .86, 3.4, false);
 
     // Titik galon dan penanda pesanan (diisi saat pesanan muncul).
     const orderGroup = new THREE.Group();
@@ -6837,7 +6995,7 @@ body.is-touch .result-card { margin: auto; }
     markerSprite.position.y = 8.1;
     markerGroup.add(markerSprite);
     const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(.035, .14, 7.4, 7),
+      SHARED.orderBeam,
       getOrderBeamMaterial()
     );
     beam.position.y = 3.8;
@@ -7285,8 +7443,12 @@ body.is-touch .result-card { margin: auto; }
 
   function isOnRoad(x, z) {
     // Jalan kota utama
-    if (STREETS.vertical.some((s) => Math.abs(x - s.coord) <= CONFIG.roadWidth / 2)) return true;
-    if (STREETS.horizontal.some((s) => Math.abs(z - s.coord) <= CONFIG.roadWidth / 2)) return true;
+    for (let i = 0; i < STREETS.vertical.length; i++) {
+      if (Math.abs(x - STREETS.vertical[i].coord) <= CONFIG.roadWidth / 2) return true;
+    }
+    for (let i = 0; i < STREETS.horizontal.length; i++) {
+      if (Math.abs(z - STREETS.horizontal[i].coord) <= CONFIG.roadWidth / 2) return true;
+    }
     // Pelataran depot, bengkel, dealer (area selatan)
     if (z > CITY_EDGE - 2 && z < 86 && Math.abs(x) < 42) return true;
     // Jalur pelabuhan / dermaga (area utara)
@@ -7294,7 +7456,11 @@ body.is-touch .result-card { margin: auto; }
     return false;
   }
 
-  function getTruckAabb(x, z, heading) {
+  // OPTIMASI: objek hasil tabrakan dipakai ulang untuk menghindari alokasi per frame.
+  const truckAabbScratch = { xMin: 0, xMax: 0, zMin: 0, zMax: 0 };
+  const truckCollisionResult = { x: 0, z: 0, hit: false };
+
+  function getTruckAabb(x, z, heading, target = null) {
     const cid = (GAME && GAME.activeCarId) || "mini";
     let halfW = 1.16;
     let halfL = 2.18;
@@ -7309,14 +7475,19 @@ body.is-touch .result-card { margin: auto; }
     const s = Math.abs(Math.sin(heading));
     const hx = c * halfW + s * halfL;
     const hz = s * halfW + c * halfL;
-    return { xMin: x - hx, xMax: x + hx, zMin: z - hz, zMax: z + hz };
+    const out = target || {};
+    out.xMin = x - hx;
+    out.xMax = x + hx;
+    out.zMin = z - hz;
+    out.zMax = z + hz;
+    return out;
   }
 
   function resolveTruckCollision(x, z, heading) {
     let nx = x;
     let nz = z;
     let hit = false;
-    const aabb = getTruckAabb(nx, nz, heading);
+    const aabb = getTruckAabb(nx, nz, heading, truckAabbScratch);
 
     for (let pass = 0; pass < 2; pass++) {
       for (const c of colliders) {
@@ -7345,7 +7516,10 @@ body.is-touch .result-card { margin: auto; }
     nx = clamp(nx, -CONFIG.world.x + halfX, CONFIG.world.x - halfX);
     nz = clamp(nz, CONFIG.world.zMin + halfZ, CONFIG.world.zMax - halfZ);
 
-    return { x: nx, z: nz, hit };
+    truckCollisionResult.x = nx;
+    truckCollisionResult.z = nz;
+    truckCollisionResult.hit = hit;
+    return truckCollisionResult;
   }
 
   function updateTruck(dt) {
@@ -7362,11 +7536,11 @@ body.is-touch .result-card { margin: auto; }
     const onRoad = isOnRoad(truck.position.x, truck.position.z);
     truck.onRoad = onRoad;
     const data = CONFIG.truck;
+    const cid = GAME.activeCarId || "mini";
+    const cond = GAME.carConditions[cid] || { health: 100, oil: 100, tire: 100 };
     // Efek keausan jarak tempuh terhadap oli dan ban
     const distTraveled = Math.abs(truck.speed) * dt;
     if (distTraveled > 0 && GAME.mode === "playing") {
-      const cid = GAME.activeCarId || "mini";
-      const cond = GAME.carConditions[cid] || { health: 100, oil: 100, tire: 100 };
       cond.oil = Math.max(0, cond.oil - distTraveled * CONFIG.workshop.wearRate.oilPerMeter);
       cond.tire = Math.max(0, cond.tire - distTraveled * CONFIG.workshop.wearRate.tirePerMeter);
       // Oli habis (<25%) mempercepat kerusakan mesin
@@ -7375,9 +7549,6 @@ body.is-touch .result-card { margin: auto; }
       }
       Workshop.updateHUDIndicators();
     }
-
-    const cid = GAME.activeCarId || "mini";
-    const cond = GAME.carConditions[cid] || { health: 100, oil: 100, tire: 100 };
 
     // Jika mesin mogok (<= threshold)
     if (cond.health <= CONFIG.workshop.wearRate.breakdownThreshold) {
@@ -7432,9 +7603,7 @@ body.is-touch .result-card { margin: auto; }
       truck.speed *= .12;
       truck.collisionPulse = .3;
       // Hitung kerusakan mesin dan bodi akibat tabrakan
-      const cid = GAME.activeCarId || "mini";
       const curCar = CONFIG.cars[cid] || CONFIG.cars.mini;
-      const cond = GAME.carConditions[cid] || { health: 100, oil: 100, tire: 100 };
       const impactDmg = (Math.abs(truck.speed) / curCar.maxSpeed) * CONFIG.workshop.wearRate.crashDamageBase * (1 / curCar.durability);
       cond.health = Math.max(0, cond.health - impactDmg);
       Workshop.updateHUDIndicators();
@@ -7470,8 +7639,8 @@ body.is-touch .result-card { margin: auto; }
       1 - Math.exp(-5 * Math.max(dt, .016))
     );
 
-    truck.wheels.forEach((w) => { w.rotation.x = truck.wheelSpin; });
-    truck.frontSteers.forEach((w) => { w.rotation.y = truck.steerVisual; });
+    for (let i = 0; i < truck.wheels.length; i++) truck.wheels[i].rotation.x = truck.wheelSpin;
+    for (let i = 0; i < truck.frontSteers.length; i++) truck.frontSteers[i].rotation.y = truck.steerVisual;
 
     if (truck.collisionPulse > 0) truck.collisionPulse = Math.max(0, truck.collisionPulse - dt);
   }
@@ -7481,6 +7650,9 @@ body.is-touch .result-card { margin: auto; }
      ========================================================== */
   const cameraLook = typeof THREE !== "undefined" ? new THREE.Vector3(0, 2, 0) : null;
   const tempForward = typeof THREE !== "undefined" ? new THREE.Vector3() : null;
+  // OPTIMASI: vektor kamera dipakai ulang agar tidak ada alokasi Vector3 setiap frame.
+  const cameraDesired = typeof THREE !== "undefined" ? new THREE.Vector3() : null;
+  const cameraLookTarget = typeof THREE !== "undefined" ? new THREE.Vector3() : null;
 
   function updateCamera(dt) {
     if (!camera || !truck) return;
@@ -7491,15 +7663,15 @@ body.is-touch .result-card { margin: auto; }
       const r = 82;
       const targetX = Math.cos(menuAngle) * r;
       const targetZ = Math.sin(menuAngle) * r + 8;
-      const desired = new THREE.Vector3(targetX, CONFIG.camera.menuHeight, targetZ);
-      camera.position.lerp(desired, 1 - Math.exp(-.45 * d));
+      cameraDesired.set(targetX, CONFIG.camera.menuHeight, targetZ);
+      camera.position.lerp(cameraDesired, 1 - Math.exp(-.45 * d));
       cameraLook.lerp(menuCameraTarget, 1 - Math.exp(-1.2 * d));
       camera.lookAt(cameraLook);
       return;
     }
 
     tempForward.set(Math.sin(truck.heading), 0, Math.cos(truck.heading));
-    const desired = new THREE.Vector3(
+    cameraDesired.set(
       truck.position.x - tempForward.x * CONFIG.camera.distance,
       CONFIG.camera.height,
       truck.position.z - tempForward.z * CONFIG.camera.distance
@@ -7507,13 +7679,13 @@ body.is-touch .result-card { margin: auto; }
 
     // Saat hasil akhir kamera tetap tenang di belakang mobil.
     const follow = GAME.mode === "ended" ? 2.4 : CONFIG.camera.followLerp;
-    camera.position.lerp(desired, 1 - Math.exp(-follow * d));
-    const lookTarget = new THREE.Vector3(
+    camera.position.lerp(cameraDesired, 1 - Math.exp(-follow * d));
+    cameraLookTarget.set(
       truck.position.x + tempForward.x * CONFIG.camera.lookAhead,
       1.45,
       truck.position.z + tempForward.z * CONFIG.camera.lookAhead
     );
-    cameraLook.lerp(lookTarget, 1 - Math.exp(-7 * d));
+    cameraLook.lerp(cameraLookTarget, 1 - Math.exp(-7 * d));
     camera.lookAt(cameraLook);
   }
 
@@ -7521,6 +7693,31 @@ body.is-touch .result-card { margin: auto; }
      NOTIFIKASI & HUD
      ========================================================== */
   const numberFormat = new Intl.NumberFormat("id-ID");
+  const maxStockValueEl = document.getElementById("maxStockValue");
+
+  // OPTIMASI: nilai terakhir HUD disimpan agar penulisan DOM tidak berulang tanpa perubahan.
+  const hudCache = {
+    score: null,
+    timer: null,
+    delivered: null,
+    stock: null,
+    maxStock: null,
+    orderCount: null,
+    urgent: null,
+    best: null,
+    objectiveVisible: null,
+    objectiveColor: null,
+    objectiveText: null
+  };
+  const promptCache = {
+    visible: null,
+    icon: null,
+    title: null,
+    text: null,
+    progress: null,
+    ready: null
+  };
+  let lastTouchActionMarkup = "";
 
   function showToast(html, type = "info", duration = 2700) {
     if (!UI.toasts) return;
@@ -7538,30 +7735,77 @@ body.is-touch .result-card { margin: auto; }
   }
 
   function updateHUD(force = false) {
-    UI.score.textContent = numberFormat.format(GAME.score);
-    UI.timer.textContent = formatClock(GAME.timeLeft);
-    UI.delivered.textContent = GAME.delivered;
-    UI.stock.textContent = GAME.stock;
-    const maxStockEl = document.getElementById("maxStockValue");
-    if (maxStockEl) maxStockEl.textContent = `/${CONFIG.maxStock}`;
-    UI.orderCount.textContent = `${GAME.orders.length}/${CONFIG.maxOrders}`;
-    UI.timerCard.classList.toggle("is-urgent", GAME.mode === "playing" && GAME.timeLeft <= CONFIG.timeStepWarning);
+    const scoreText = numberFormat.format(GAME.score);
+    if (hudCache.score !== scoreText) {
+      hudCache.score = scoreText;
+      UI.score.textContent = scoreText;
+    }
+
+    const timerText = formatClock(GAME.timeLeft);
+    if (hudCache.timer !== timerText) {
+      hudCache.timer = timerText;
+      UI.timer.textContent = timerText;
+    }
+
+    if (hudCache.delivered !== GAME.delivered) {
+      hudCache.delivered = GAME.delivered;
+      UI.delivered.textContent = GAME.delivered;
+    }
+
+    if (hudCache.stock !== GAME.stock) {
+      hudCache.stock = GAME.stock;
+      UI.stock.textContent = GAME.stock;
+    }
+
+    const maxStockText = `/${CONFIG.maxStock}`;
+    if (hudCache.maxStock !== maxStockText) {
+      hudCache.maxStock = maxStockText;
+      if (maxStockValueEl) maxStockValueEl.textContent = maxStockText;
+    }
+
+    const orderCountText = `${GAME.orders.length}/${CONFIG.maxOrders}`;
+    if (hudCache.orderCount !== orderCountText) {
+      hudCache.orderCount = orderCountText;
+      UI.orderCount.textContent = orderCountText;
+    }
+
+    const urgent = GAME.mode === "playing" && GAME.timeLeft <= CONFIG.timeStepWarning;
+    if (hudCache.urgent !== urgent) {
+      hudCache.urgent = urgent;
+      UI.timerCard.classList.toggle("is-urgent", urgent);
+    }
+
     updateObjective();
     refreshOrderTimes();
-    UI.bestMenu.textContent = numberFormat.format(GAME.highScore);
+
+    const bestText = numberFormat.format(GAME.highScore);
+    if (hudCache.best !== bestText) {
+      hudCache.best = bestText;
+      UI.bestMenu.textContent = bestText;
+    }
     if (force) updateStreetLabel(true);
   }
 
   function updateObjective() {
     const order = getSelectedOrder();
-    if (!order || GAME.mode !== "playing") {
-      UI.objectiveBar.classList.remove("is-visible");
-      return;
+    const shouldShow = !!order && GAME.mode === "playing";
+    if (hudCache.objectiveVisible !== shouldShow) {
+      hudCache.objectiveVisible = shouldShow;
+      UI.objectiveBar.classList.toggle("is-visible", shouldShow);
     }
-    UI.objectiveBar.classList.add("is-visible");
-    UI.objectiveBar.style.setProperty("--house-color", order.color.css);
-    UI.objectiveText.textContent =
+    if (!shouldShow) return;
+
+    if (hudCache.objectiveColor !== order.color.css) {
+      hudCache.objectiveColor = order.color.css;
+      UI.objectiveBar.style.setProperty("--house-color", order.color.css);
+    }
+
+    const objectiveText =
       `${order.customer} · ${order.roadName} No. ${order.house.number} · ${order.gallons} galon`;
+    if (hudCache.objectiveText !== objectiveText) {
+      hudCache.objectiveText = objectiveText;
+      UI.objectiveText.textContent = objectiveText;
+    }
   }
 
   function getSelectedOrder() {
@@ -7604,20 +7848,53 @@ body.is-touch .result-card { margin: auto; }
         </button>
       `;
     }).join("");
+
+    // OPTIMASI: simpan referensi elemen kartu sekali per render, bukan querySelector tiap HUD tick.
+    for (let i = 0; i < orders.length; i++) {
+      const order = orders[i];
+      const card = UI.ordersList.querySelector(`[data-order-id="${order.id}"]`);
+      if (!card) {
+        order.ui = null;
+        continue;
+      }
+      order.ui = {
+        card,
+        timeEl: card.querySelector(".order-time"),
+        barEl: card.querySelector(".time-track i"),
+        timeText: null,
+        width: null,
+        urgent: null
+      };
+    }
+
     updateObjective();
     refreshOrderTimes();
   }
 
   function refreshOrderTimes() {
-    GAME.orders.forEach((order) => {
-      const card = UI.ordersList.querySelector(`[data-order-id="${order.id}"]`);
-      if (!card) return;
-      const timeEl = card.querySelector(".order-time");
-      const barEl = card.querySelector(".time-track i");
-      if (timeEl) timeEl.textContent = formatCountdown(order.remaining);
-      if (barEl) barEl.style.width = `${clamp(order.remaining / order.life, 0, 1) * 100}%`;
-      card.classList.toggle("is-urgent", order.remaining <= 15);
-    });
+    for (let i = 0; i < GAME.orders.length; i++) {
+      const order = GAME.orders[i];
+      const ui = order.ui;
+      if (!ui || !ui.card) continue;
+
+      const timeText = formatCountdown(order.remaining);
+      if (ui.timeText !== timeText) {
+        ui.timeText = timeText;
+        if (ui.timeEl) ui.timeEl.textContent = timeText;
+      }
+
+      const width = `${clamp(order.remaining / order.life, 0, 1) * 100}%`;
+      if (ui.width !== width) {
+        ui.width = width;
+        if (ui.barEl) ui.barEl.style.width = width;
+      }
+
+      const urgent = order.remaining <= 15;
+      if (ui.urgent !== urgent) {
+        ui.urgent = urgent;
+        ui.card.classList.toggle("is-urgent", urgent);
+      }
+    }
   }
 
   function selectOrder(orderId) {
@@ -7719,7 +7996,8 @@ body.is-touch .result-card { margin: auto; }
 
   function updateOrderVisuals(dt) {
     const t = performance.now() * .001;
-    houses.forEach((house) => {
+    for (let i = 0; i < houses.length; i++) {
+      const house = houses[i];
       if (house.activeOrder && house.marker.visible) {
         house.markerSprite.position.y = 8.1 + Math.sin(t * 1.9 + house.markerTime) * .17;
       }
@@ -7739,7 +8017,7 @@ body.is-touch .result-card { margin: auto; }
           clearHouseOrderVisual(house);
         }
       }
-    });
+    }
 
     if (depot && depot.zoneRing) {
       const pulse = 1 + Math.sin(t * 2.2) * .055;
@@ -7944,30 +8222,37 @@ body.is-touch .result-card { margin: auto; }
   function nearestOrderHouse() {
     if (!truck) return null;
     let nearest = null;
-    let distance = Infinity;
-    GAME.orders.forEach((order) => {
-      const point = order.house.deliveryPoint;
-      const d = Math.hypot(truck.position.x - point.x, truck.position.z - point.z);
-      if (d <= CONFIG.deliverRadius && d < distance) {
-        nearest = order;
-        distance = d;
+    let bestDistanceSq = Infinity;
+    const radiusSq = CONFIG.deliverRadius * CONFIG.deliverRadius;
+    for (let i = 0; i < GAME.orders.length; i++) {
+      const point = GAME.orders[i].house.deliveryPoint;
+      const dx = truck.position.x - point.x;
+      const dz = truck.position.z - point.z;
+      const distanceSq = dx * dx + dz * dz;
+      if (distanceSq <= radiusSq && distanceSq < bestDistanceSq) {
+        nearest = GAME.orders[i];
+        bestDistanceSq = distanceSq;
       }
-    });
+    }
     return nearest;
   }
 
   function nearestHouseNotice() {
     if (!truck) return null;
     let nearest = null;
-    let distance = Infinity;
-    houses.forEach((house) => {
-      if (!house.deliveryPoint || house.activeOrder) return;
-      const d = Math.hypot(truck.position.x - house.deliveryPoint.x, truck.position.z - house.deliveryPoint.z);
-      if (d <= CONFIG.houseNoticeRadius && d < distance) {
+    let bestDistanceSq = Infinity;
+    const radiusSq = CONFIG.houseNoticeRadius * CONFIG.houseNoticeRadius;
+    for (let i = 0; i < houses.length; i++) {
+      const house = houses[i];
+      if (!house.deliveryPoint || house.activeOrder) continue;
+      const dx = truck.position.x - house.deliveryPoint.x;
+      const dz = truck.position.z - house.deliveryPoint.z;
+      const distanceSq = dx * dx + dz * dz;
+      if (distanceSq <= radiusSq && distanceSq < bestDistanceSq) {
         nearest = house;
-        distance = d;
+        bestDistanceSq = distanceSq;
       }
-    });
+    }
     return nearest;
   }
 
@@ -7985,14 +8270,19 @@ body.is-touch .result-card { margin: auto; }
 
     const nearOrder = nearestOrderHouse();
     const noticeHouse = nearOrder ? nearOrder.house : nearestHouseNotice();
-    const depotDistance = Math.hypot(truck.position.x - depot.position.x, truck.position.z - depot.position.z);
-    const nearDepot = depotDistance <= CONFIG.depot.refillRadius;
 
-    const wsDist = Math.hypot(truck.position.x - CONFIG.workshop.position.x, truck.position.z - CONFIG.workshop.position.z);
-    const nearWorkshop = wsDist <= CONFIG.workshop.serviceRadius;
+    // OPTIMASI: perbandingan jarak memakai kuadrat, tanpa Math.hypot/sqrt per frame.
+    const depotDx = truck.position.x - depot.position.x;
+    const depotDz = truck.position.z - depot.position.z;
+    const nearDepot = depotDx * depotDx + depotDz * depotDz <= CONFIG.depot.refillRadius * CONFIG.depot.refillRadius;
 
-    const dlDist = Math.hypot(truck.position.x - CONFIG.carDealer.position.x, truck.position.z - CONFIG.carDealer.position.z);
-    const nearDealer = dlDist <= CONFIG.carDealer.dealerRadius;
+    const wsDx = truck.position.x - CONFIG.workshop.position.x;
+    const wsDz = truck.position.z - CONFIG.workshop.position.z;
+    const nearWorkshop = wsDx * wsDx + wsDz * wsDz <= CONFIG.workshop.serviceRadius * CONFIG.workshop.serviceRadius;
+
+    const dlDx = truck.position.x - CONFIG.carDealer.position.x;
+    const dlDz = truck.position.z - CONFIG.carDealer.position.z;
+    const nearDealer = dlDx * dlDx + dlDz * dlDz <= CONFIG.carDealer.dealerRadius * CONFIG.carDealer.dealerRadius;
 
     const stopped = Math.abs(truck.speed) < .68;
     const slowEnough = Math.abs(truck.speed) < 1.5;
@@ -8090,18 +8380,46 @@ body.is-touch .result-card { margin: auto; }
   }
 
   function showPrompt(icon, title, text, progress = 0, ready = false) {
-    UI.contextPrompt.classList.add("is-visible");
-    UI.promptIcon.textContent = icon;
-    UI.promptTitle.textContent = title;
-    UI.promptText.textContent = text;
-    UI.promptProgress.style.width = `${clamp(progress, 0, 1) * 100}%`;
-    UI.actionTouch.classList.toggle("is-ready", !!ready);
+    if (promptCache.visible !== true) {
+      promptCache.visible = true;
+      UI.contextPrompt.classList.add("is-visible");
+    }
+    if (promptCache.icon !== icon) {
+      promptCache.icon = icon;
+      UI.promptIcon.textContent = icon;
+    }
+    if (promptCache.title !== title) {
+      promptCache.title = title;
+      UI.promptTitle.textContent = title;
+    }
+    if (promptCache.text !== text) {
+      promptCache.text = text;
+      UI.promptText.textContent = text;
+    }
+    const width = `${clamp(progress, 0, 1) * 100}%`;
+    if (promptCache.progress !== width) {
+      promptCache.progress = width;
+      UI.promptProgress.style.width = width;
+    }
+    if (promptCache.ready !== !!ready) {
+      promptCache.ready = !!ready;
+      UI.actionTouch.classList.toggle("is-ready", !!ready);
+    }
   }
 
   function hidePrompt() {
-    UI.contextPrompt.classList.remove("is-visible");
-    UI.promptProgress.style.width = "0%";
-    UI.actionTouch.classList.remove("is-ready");
+    if (promptCache.visible !== false) {
+      promptCache.visible = false;
+      UI.contextPrompt.classList.remove("is-visible");
+    }
+    if (promptCache.progress !== "0%") {
+      promptCache.progress = "0%";
+      UI.promptProgress.style.width = "0%";
+    }
+    if (promptCache.ready !== false) {
+      promptCache.ready = false;
+      UI.actionTouch.classList.remove("is-ready");
+    }
   }
 
   function updateTouchAction(nearOrder, nearDepot, slowEnough) {
@@ -8121,7 +8439,10 @@ body.is-touch .result-card { margin: auto; }
       letter = "🚗";
       label = "DEALER";
     }
-    UI.actionTouch.innerHTML = `${letter}<span>${label}</span>`;
+    const markup = `${letter}<span>${label}</span>`;
+    if (lastTouchActionMarkup === markup) return;
+    lastTouchActionMarkup = markup;
+    UI.actionTouch.innerHTML = markup;
   }
 
   function tryAction() {
@@ -8130,8 +8451,9 @@ body.is-touch .result-card { margin: auto; }
     GAME.actionCooldown = .28;
 
     const nearOrder = nearestOrderHouse();
-    const distanceDepot = Math.hypot(truck.position.x - depot.position.x, truck.position.z - depot.position.z);
-    const nearDepot = distanceDepot <= CONFIG.depot.refillRadius;
+    const depotDx = truck.position.x - depot.position.x;
+    const depotDz = truck.position.z - depot.position.z;
+    const nearDepot = depotDx * depotDx + depotDz * depotDz <= CONFIG.depot.refillRadius * CONFIG.depot.refillRadius;
     const stoppedEnough = Math.abs(truck.speed) < 1.6;
 
     if (GAME.nearWorkshop) {
@@ -9249,8 +9571,11 @@ body.is-touch .result-card { margin: auto; }
     }
 
     updateCamera(dt);
-    if (GAME.mode === "playing" || GAME.mode === "ended") drawMinimap(now);
-    renderer.render(scene, camera);
+    // OPTIMASI: saat tab tidak aktif, jangan render/gambar minimap; logika game tetap berjalan.
+    if (!document.hidden) {
+      if (GAME.mode === "playing" || GAME.mode === "ended") drawMinimap(now);
+      renderer.render(scene, camera);
+    }
   }
 
   /* ==========================================================
